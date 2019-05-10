@@ -44,6 +44,38 @@ Special Judge所需的文件夹由`config.ini`中的`spj_files_path`字段指定
 SPJ程序的标准输入会有三行被写入，分别是测试数据输入文件名，测试数据输出文件名和用户输出数据文件名，你需要从这三个文件中来读取数据。
 若SPJ程序的exit_code为0则表示AC，否则表示WA。
 
+## Ballon
+### 运行Redis
+`redis.conf`
+```
+port 8080
+bind 0.0.0.0
+appendonly yes
+maxmemory-policy noeviction
+```
+`$ redis-server ./redis.conf`
+
+### 修改Judger
+修改`src/Submit.cpp`，在
+```cpp
+if (result == RunResult::ACCEPTED) {
+    if (contest_id == 0) {
+        if (!db.already_accepted(uid, pid)) {
+            db.add_user_total_solved(uid);
+        }
+        db.add_user_total_accepted(uid);
+    } else {
+        db.add_contest_total_accepted(contest_id, pid);
+    }
+}
+```
+中`else`的分支加上
+```cpp
+char cmd[256];
+sprintf(cmd, "redis-cli -h 127.0.0.1 -p 8080 rpush ballon_%d %d_%d_%d", contest_id, uid, pid, runid);
+system(cmd);
+```
+
 # 运行
 把编译后生成的`Judger`和`config.ini`与各个所需文件夹放在同一个目录下，由非`judger`用户`sudo ./Judger`运行。
 日志信息全部会输出到`stderr`。
