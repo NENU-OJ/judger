@@ -111,6 +111,11 @@ int next_runid() {
 
 	std::vector<std::string> split_list = Utils::split(buf);
 
+    if (split_list.size() < 2) {
+        LOG(ERROR) << "split_list.size: " << split_list.size() << ", buf: " << buf;
+        throw Exception("Error runid request from web");
+    }
+
 	if (split_list[0] != Config::get_instance()->get_connect_string())
 		throw Exception("Wrong connect_string");
 	int runid = atoi(split_list[1].c_str());
