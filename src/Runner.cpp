@@ -146,6 +146,12 @@ void Runner::child_run() {
 	itv.it_interval.tv_usec = 0;
 	setitimer(ITIMER_VIRTUAL, &itv, NULL); // CPU time
 
+    itv.it_value.tv_sec = total_run_time_ms / 1000 + 3;
+    itv.it_value.tv_usec = (total_run_time_ms % 1000) * 1000;
+    itv.it_interval.tv_sec = 0;
+    itv.it_interval.tv_usec = 0;
+    setitimer(ITIMER_REAL, &itv, NULL); // real time
+
 	/// set stack limit
 	rlimit stack_limit;
 	stack_limit.rlim_max = stack_limit.rlim_cur = rlim_t(Config::get_instance()->get_stack_limit_kb()) * 1024;
@@ -243,7 +249,7 @@ RunResult Runner::run(const std::string &input_file) { // suppose compile succes
 			else if (WIFSIGNALED(status) && WTERMSIG(status) != SIGTRAP) {
 				if (WTERMSIG(status) == SIGXFSZ)
 					result.status = RunResult::OUTPUT_LIMIT_EXCEEDED.status;
-				if (WTERMSIG(status) == SIGXCPU || WTERMSIG(status) == SIGVTALRM)
+				if (WTERMSIG(status) == SIGXCPU || WTERMSIG(status) == SIGVTALRM || WTERMSIG(status) == SIGALRM)
 					result.status = RunResult::TIME_LIMIT_EXCEEDED.status;
 				else
 					result.status = RunResult::RUNTIME_ERROR.status;
@@ -252,7 +258,7 @@ RunResult Runner::run(const std::string &input_file) { // suppose compile succes
 			} else if (WIFSTOPPED(status) && WSTOPSIG(status) != SIGTRAP) {
 				if (WSTOPSIG(status) == SIGXFSZ)
 					result.status = RunResult::OUTPUT_LIMIT_EXCEEDED.status;
-				else if (WSTOPSIG(status) == SIGXCPU || WSTOPSIG(status) == SIGVTALRM)
+                else if (WSTOPSIG(status) == SIGXCPU || WSTOPSIG(status) == SIGVTALRM || WSTOPSIG(status) == SIGALRM)
 					result.status = RunResult::TIME_LIMIT_EXCEEDED.status;
 				else
 					result.status = RunResult::RUNTIME_ERROR.status;
