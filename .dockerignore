@@ -1,0 +1,14 @@
+# git
+.git/
+
+# idea
+.idea/
+
+# cmake
+cmake-build-debug/
+
+# judger
+temp_path/
+spj_files/
+test_files/
+nohup.out

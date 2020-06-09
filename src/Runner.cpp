@@ -309,7 +309,6 @@ RunResult Runner::run(const std::string &input_file) { // suppose compile succes
 		    LOG(INFO) << "wait4 again, ret: " << ret;
 		    if (ret == -1) {
 		        LOG(ERROR) << "wait4 error, ret: " << ret;
-		        return RunResult::JUDGE_ERROR;
 		    }
 		}
 
