@@ -79,3 +79,11 @@ system(cmd);
 # 运行
 把编译后生成的`Judger`和`config.ini`与各个所需文件夹放在同一个目录下，由非`judger`用户`sudo ./Judger`运行。
 日志信息全部会输出到`stderr`。
+
+# Docker
+
+## Build
+Run `docker/builddocker.sh`
+
+## Run
+Set the environments `CONFIG_FILE_PATH` `TEST_FILES_PATH` `SPJ_FILES_PATH` and run `docker/rundocker.sh`.
