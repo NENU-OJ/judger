@@ -7,7 +7,7 @@
 
 #include <string>
 #include <map>
-#include <mysql.h>
+#include <mysql/mysql.h>
 #include <vector>
 #include "RunResult.h"
 
