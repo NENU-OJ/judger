@@ -19,7 +19,7 @@ DatabaseHandler::DatabaseHandler() {
                             Config::get_instance()->get_db_db_name().c_str(),
                             Config::get_instance()->get_db_port(),
                             NULL, 0)) {
-        throw Exception("Cannot connect to DB");
+        throw Exception(mysql_error(mysql));
     }
 }
 

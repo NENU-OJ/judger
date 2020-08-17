@@ -23,15 +23,15 @@ static pthread_mutex_t queue_mtx = PTHREAD_MUTEX_INITIALIZER;
  */
 
 void init_queue() {
-    SPDLOG_INFO("init queue");
-    DatabaseHandler db;
-    auto unfinished_runs = db.get_unfinished_results();
-    for (auto &run : unfinished_runs) {
-        int runid = atoi(run["id"].c_str());
-        int pid = atoi(run["problem_id"].c_str());
-        int uid = atoi(run["user_id"].c_str());
-        int contest_id = atoi(run["contest_id"].c_str());
-        try {
+    try {
+        SPDLOG_INFO("init queue");
+        DatabaseHandler db;
+        auto unfinished_runs = db.get_unfinished_results();
+        for (auto &run : unfinished_runs) {
+            int runid = atoi(run["id"].c_str());
+            int pid = atoi(run["problem_id"].c_str());
+            int uid = atoi(run["user_id"].c_str());
+            int contest_id = atoi(run["contest_id"].c_str());
             auto problem_info = db.get_problem_description(pid);
             Submit *submit = new Submit();
             submit->set_runid(runid);
@@ -50,11 +50,12 @@ void init_queue() {
             judge_queue.push(submit);
             db.change_run_result(runid, RunResult::QUEUEING);
             SPDLOG_INFO("init enqueue runid: {:d}", runid);
-        } catch (Exception &e) {
-            SPDLOG_ERROR("{:s}", e.what());
         }
+        SPDLOG_INFO("init queue finished");
+    } catch (Exception &e) {
+        SPDLOG_ERROR("{:s}", e.what());
+        exit(1);
     }
-    SPDLOG_INFO("init queue finished");
 }
 
 /**
