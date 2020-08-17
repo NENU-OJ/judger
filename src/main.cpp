@@ -1,5 +1,5 @@
 #include <iostream>
-#include <glog/logging.h>
+#include <spdlog/spdlog.h>
 #include <queue>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -24,7 +24,7 @@ static pthread_mutex_t queue_mtx = PTHREAD_MUTEX_INITIALIZER;
  */
 
 void init_queue() {
-	LOG(INFO) << "init queue";
+	SPDLOG_INFO("init queue");
 	DatabaseHandler db;
 	auto unfinished_runs = db.get_unfinished_results();
 	for (auto &run : unfinished_runs) {
@@ -50,12 +50,12 @@ void init_queue() {
 
 			judge_queue.push(submit);
 			db.change_run_result(runid, RunResult::QUEUEING);
-			LOG(INFO) << "init enqueue runid: " << runid;
+			SPDLOG_INFO("init enqueue runid: {:d}", runid);
 		} catch (Exception &e) {
-			LOG(ERROR) << e.what();
+			SPDLOG_ERROR("{:s}", e.what());
 		}
 	}
-	LOG(INFO) << "init queue finished";
+	SPDLOG_INFO("init queue finished");
 }
 
 /**
@@ -63,10 +63,11 @@ void init_queue() {
  */
 void init_socket() {
 
-	LOG(INFO) << "init socket";
+    SPDLOG_INFO("init socket");
 
 	if ((main_sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		LOG(FATAL) << "socket error";
+        SPDLOG_ERROR("socket error");
+        exit(1);
 	}
 
 	sockaddr_in my_addr;
@@ -75,20 +76,22 @@ void init_socket() {
 	my_addr.sin_addr.s_addr = INADDR_ANY;
 	bzero(&(my_addr.sin_zero), 8);
 
-	LOG(INFO) << "bind socket";
+    SPDLOG_INFO("bind socket");
 
 	if (bind(main_sockfd, (struct sockaddr *) & my_addr,
 	         sizeof (struct sockaddr)) == -1) {
-		LOG(FATAL) << "bind error";
+        SPDLOG_ERROR("bind error");
+        exit(1);
 	}
 
-	LOG(INFO) << "start listen";
+    SPDLOG_INFO("start listen");
 
 	if (listen(main_sockfd, 5) == -1) {
-		LOG(FATAL) << "listen error";
+        SPDLOG_ERROR("listen error");
+        exit(1);
 	}
 
-	LOG(INFO) << "init socket finished";
+    SPDLOG_INFO("init socket finished");
 }
 
 /**
@@ -98,7 +101,7 @@ void init_socket() {
 int next_runid() {
 	int cfd = accept(main_sockfd, NULL, NULL);
 
-	LOG(INFO) << "accepted connection fd: " << cfd;
+    SPDLOG_INFO("accepted connection fd: {:d}", cfd);
 
 	static char buf[128];
 	int num_read = 0;
@@ -112,7 +115,7 @@ int next_runid() {
 	std::vector<std::string> split_list = Utils::split(buf);
 
     if (split_list.size() < 2) {
-        LOG(ERROR) << "split_list.size: " << split_list.size() << ", buf: " << buf;
+        SPDLOG_ERROR("split_list.size: {:d}, buf: {:s}", split_list.size(), buf);
         throw Exception("Error runid request from web");
     }
 
@@ -132,10 +135,10 @@ void * listen_thread(void *arg) {
 			db.change_run_result(runid, RunResult::QUEUEING);
 			pthread_mutex_lock(&queue_mtx);
 			judge_queue.push(submit);
-			LOG(INFO) << "[listen thread] socket enqueue runid: " << runid;
+			SPDLOG_INFO("[listen thread] socket enqueue runid: {:d}", runid);
 			pthread_mutex_unlock(&queue_mtx);
 		} catch (Exception &e) {
-			LOG(ERROR) << e.what();
+            SPDLOG_ERROR("{:s}", e.what());
 		}
 	}
 }
@@ -155,12 +158,12 @@ void * judge_thread(void *arg) {
 
 		if (have_run) {
 			try {
-				LOG(INFO) << "[judge thread] send runid: " << submit->get_runid() << " to work";
+                SPDLOG_INFO("[judge thread] send runid: {:d} to work", submit->get_runid());
 				submit->work();
 				delete submit;
 				submit = nullptr;
 			} catch (Exception &e) {
-				LOG(ERROR) << e.what();
+                SPDLOG_ERROR("{:s}", e.what());
 				if (submit != nullptr)
 					delete submit;
 			}
@@ -172,21 +175,29 @@ void init_threads() {
 
 	/// listen thread
 	pthread_t tid_listen;
-	if (pthread_create(&tid_listen, NULL, listen_thread, NULL) != 0)
-		LOG(FATAL) << "Can't init listen thread!";
-	if (pthread_detach(tid_listen) != 0)
-		LOG(FATAL) << "Can't detach listen thread!";
+	if (pthread_create(&tid_listen, NULL, listen_thread, NULL) != 0) {
+        SPDLOG_ERROR("cannot init listen thread!");
+        exit(1);
+    }
+	if (pthread_detach(tid_listen) != 0) {
+        SPDLOG_ERROR("cannot detach listen thread!");
+        exit(1);
+    }
 
-	LOG(INFO) << "listen thread init finished";
+	SPDLOG_INFO("listen thread init finished");
 
 	/// judge_thread
 	pthread_t tid_judge;
-	if (pthread_create(&tid_judge, NULL, judge_thread, NULL) != 0)
-		LOG(FATAL) << "Can't init judge thread!";
-	if (pthread_detach(tid_judge) != 0)
-		LOG(FATAL) << "Can't detach judge thread!";
+	if (pthread_create(&tid_judge, NULL, judge_thread, NULL) != 0) {
+        SPDLOG_ERROR("cannot init judge thread!");
+        exit(1);
+    }
+	if (pthread_detach(tid_judge) != 0) {
+        SPDLOG_ERROR("cannot detach judge thread!");
+        exit(1);
+    }
 
-	LOG(INFO) << "judge thread init finished";
+	SPDLOG_INFO("judge thread init finished");
 }
 
 void test_runs() {
@@ -214,14 +225,18 @@ void test_set_uid() {
 		int status;
 		waitpid(pid, &status, 0);
 		if (WIFEXITED(status)) {
-			if (WEXITSTATUS(status) == 0)
-				LOG(INFO) << "can set low_privilege_uid" << endl;
-			else if (WEXITSTATUS(status) == 1)
-				LOG(FATAL) << "can't set low_privilege_uid";
-			else
-				LOG(FATAL) << "unknown error";
+			if (WEXITSTATUS(status) == 0) {
+                SPDLOG_INFO("can set low_privilege_uid");
+            } else if (WEXITSTATUS(status) == 1) {
+                SPDLOG_ERROR("cannot set low_privilege_uid");
+                exit(1);
+            } else {
+                SPDLOG_ERROR("unknown error");
+                exit(1);
+            }
 		} else {
-			LOG(FATAL) << "unknown error";
+			SPDLOG_ERROR("unknown error");
+			exit(1);
 		}
 	}
 }

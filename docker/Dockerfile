@@ -27,7 +27,6 @@ RUN apt-get update \
         python2 \
         python3 \
         default-jdk \
-        libgoogle-glog-dev \
         libmysqlclient-dev
 
 RUN useradd judger --uid 1000

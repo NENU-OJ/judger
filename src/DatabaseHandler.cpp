@@ -3,7 +3,6 @@
 //
 
 #include <cstring>
-#include <glog/logging.h>
 #include "DatabaseHandler.h"
 #include "Exception.h"
 #include "Config.h"

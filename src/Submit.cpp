@@ -3,7 +3,7 @@
 //
 
 #include <algorithm>
-#include <glog/logging.h>
+#include <spdlog/spdlog.h>
 
 #include "Submit.h"
 #include "Runner.h"
@@ -72,8 +72,8 @@ void Submit::work() {
 	if (!Utils::check_file(std_input_file) || !Utils::check_file(std_output_file)) {
 		result = RunResult::JUDGE_ERROR;
 		db.change_run_result(runid, result);
-		LOG(ERROR) << "problem: " << pid << " does not have input_file or output_file supposed in " << std_input_file << " and " << std_output_file;
-		LOG(INFO) << "result runid: " << runid << " " << result.status;
+		SPDLOG_ERROR("problem: {:d} does not have input_file or output_file supposed in {:s} and {:s}", pid, std_input_file, std_output_file);
+		SPDLOG_INFO("result runid: {:d} {:s}", runid, result.status);
 		return;
 	}
 
@@ -84,12 +84,12 @@ void Submit::work() {
 
 	Runner run(time_limit_ms, memory_limit_kb, language, src);
 
-	LOG(INFO) << "compiling runid: " << runid;
+	SPDLOG_INFO("compiling runid: {:d}", runid);
 	db.change_run_result(runid, RunResult::COMPILING);
 	result = run.compile();
 
 	if (result == RunResult::COMPILE_SUCCESS) {
-		LOG(INFO) << "running runid: " << runid;
+		SPDLOG_INFO("running runid: {:d}", runid);
 		db.change_run_result(runid, RunResult::RUNNING);
 		result = run.run(std_input_file);
 		if (result == RunResult::RUN_SUCCESS) {
@@ -103,7 +103,7 @@ void Submit::work() {
 	std::string output_file = Config::get_instance()->get_temp_path() + Config::get_instance()->get_output_file();
 	if (Utils::check_file(output_file)) Utils::delete_file(output_file);
 
-	LOG(INFO) << "result runid: " << runid << " " << result.status;
+    SPDLOG_INFO("result runid: {:d} {:s}", runid, result.status);
 
 	if (result == RunResult::ACCEPTED) {
 		if (contest_id == 0) {
@@ -125,13 +125,13 @@ void Submit::work() {
 
 RunResult Submit::spj_check() {
 
-	LOG(INFO) << "spj check runid: " << runid;
+	SPDLOG_INFO("spj check runid: {:d}", runid);
 
 	std::string spj_src_file = Config::get_instance()->get_spj_files_path() + std::to_string(pid) +
 			"/spj" + Config::get_instance()->get_src_extention(is_spj);
 
 	if (!Utils::check_file(spj_src_file)) {
-		LOG(ERROR) << "spj for problem: " << pid << " need " << spj_src_file;
+		SPDLOG_ERROR("spj for problem: {:d} need {:s}", pid, spj_src_file);
 		return RunResult::JUDGE_ERROR;
 	}
 
@@ -155,19 +155,19 @@ RunResult Submit::spj_check() {
 
 	Utils::save_to_file(spj_info_file, spj_info);
 
-	LOG(INFO) << "spj compiling runid: " << runid;
+	SPDLOG_INFO("spj compiling runid: {:d}", runid);
 
 	RunResult result = spj.compile();
 
 	if (result == RunResult::COMPILE_ERROR) {
-		LOG(ERROR) << "spj program for problem: " << pid << " in " << spj_src_file << " have Compile Error";
+		SPDLOG_ERROR("spj program for problem: {:d} in {:s} have Compile Error", pid, spj_src_file);
 		return RunResult::JUDGE_ERROR;
 	}
 
-	LOG(INFO) << "spj running runid: " << runid;
+	SPDLOG_INFO("spj running runid: {:d}", runid);
 	result = spj.run(spj_info_file);
 
-	LOG(INFO) << "spj result runid: " << runid << " " << result.status;
+	SPDLOG_INFO("spj result runid: {:d} {:s}", runid, result.status);
 
 	if (Utils::check_file(spj_info_file)) Utils::delete_file(spj_info_file);
 	if (Utils::check_file(spj_user_output)) Utils::delete_file(spj_user_output);
@@ -180,7 +180,7 @@ RunResult Submit::spj_check() {
 
 RunResult Submit::normal_check() {
 
-	LOG(INFO) << "normal check runid: " << runid;
+	SPDLOG_INFO("normal check runid: {:d}", runid);
 
 	bool aced = true, peed = true;
 	FILE *program_out, *standard_out;

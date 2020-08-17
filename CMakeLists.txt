@@ -20,10 +20,11 @@ set(
         src/DatabaseHandler.h
 )
 
+include_directories(src/include)
+
 link_directories(/usr/local/lib)
 
 add_executable(Judger ${SOURCE_FILES})
 
-target_link_libraries(Judger glog)
 target_link_libraries(Judger pthread)
 target_link_libraries(Judger mysqlclient)

@@ -86,4 +86,12 @@ system(cmd);
 Run `docker/builddocker.sh`
 
 ## Run
-Set the environments `CONFIG_FILE_PATH` `TEST_FILES_PATH` `SPJ_FILES_PATH` and run `docker/rundocker.sh`.
+Set the environments:
+* `CONFIG_FILE_PATH`
+* `TEST_FILES_PATH`
+* `SPJ_FILES_PATH` 
+* `HOSTPORT`
+* `CONTAINERPORT`
+* `LOGS_PATH`
+
+and then run `docker/rundocker.sh`.
