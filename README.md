@@ -92,5 +92,6 @@ Set the environments:
 * `SPJ_FILES_PATH` 
 * `HOSTPORT`
 * `CONTAINERPORT`
+* `LOGS_PATH`
 
 and then run `docker/rundocker.sh`.

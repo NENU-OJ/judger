@@ -10,8 +10,11 @@ docker run \
   --restart always \
   --cap-add=SYS_PTRACE \
   --name=$CONTAINER_NAME \
+  -v /etc/timezone:/etc/timezone:ro \
+  -v /etc/localtime:/etc/localtime:ro \
   -v $CONFIG_FILE_PATH:/judger/config.ini \
   -v $TEST_FILES_PATH:/judger/test_files \
   -v $SPJ_FILES_PATH:/judger/spj_files \
+  -v $LOGS_PATH:/judger/logs \
   -p $HOSTPORT:$CONTAINERPORT \
   $IMAGE_NAME
