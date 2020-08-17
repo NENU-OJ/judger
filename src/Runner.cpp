@@ -5,7 +5,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
-#include <glog/logging.h>
+#include <spdlog/spdlog.h>
 #include <sys/ptrace.h>
 #include <sys/user.h>
 #include <syscall.h>
@@ -58,7 +58,8 @@ void Runner::child_compile() {
 	/// set uid
 	if (setuid(Config::get_instance()->get_low_privilege_uid()) < 0) {
 		fputs("setuid before compile fail.", stderr);
-		LOG(FATAL) << "can't setuid, maybe you should sudo or choose a right uid";
+		SPDLOG_ERROR("can't setuid, maybe you should sudo or choose a right uid");
+		exit(1);
 	}
 
 	/// compile
@@ -92,7 +93,7 @@ RunResult Runner::compile() {
 
 	/// write to src file
 	if (!Utils::save_to_file(src_file_name, src)) {
-		LOG(ERROR) << "Can not save source code to file " + src_file_name;
+		SPDLOG_ERROR("Can not save source code to file: {:s}", src_file_name);
 		return RunResult::JUDGE_ERROR;
 	}
 
@@ -127,7 +128,7 @@ RunResult Runner::compile() {
 				// dirty way to kill the subprocess, maybe clean it later
 				// g++'s child process cc1plus will become orphan process when g++ is killed
                 int code = system("pkill cc1plus");
-                LOG(INFO) << "compile time limit exceeded, run cmd[pkill cc1plus] to kill the compiler, exit code: " << code;
+                SPDLOG_INFO("compile time limit exceeded, run cmd[pkill cc1plus] to kill the compiler, exit code: {:d}", code);
 			}
 			return RunResult::COMPILE_ERROR.set_time_used(time_used_ms).set_memory_used(memory_used_kb).set_ce_info(ce_info);
 		}
@@ -163,8 +164,10 @@ void Runner::child_run() {
 	setrlimit(RLIMIT_FSIZE, &output_limit);
 
 	/// set uid
-	if (setuid(Config::get_instance()->get_low_privilege_uid()) < 0)
-		LOG(FATAL) << "can't setuid, maybe you should sudo or choose a right uid";
+	if (setuid(Config::get_instance()->get_low_privilege_uid()) < 0) {
+        SPDLOG_ERROR("can't setuid, maybe you should sudo or choose a right uid");
+        exit(1);
+    }
 
 	/// redirect stdin stream
 	if (!input_file.empty())
@@ -303,12 +306,12 @@ RunResult Runner::run(const std::string &input_file) { // suppose compile succes
 		}
 
 
-		LOG(INFO) << "child: " << cid << ", need_wait: " << (need_wait ? "true" : "false");
+		SPDLOG_INFO("child: {:d}, need_wait: {:s}", cid, (need_wait ? "true" : "false"));
 		if (need_wait) {
 		    int ret = wait4(cid, &status, WUNTRACED, &run_info);
-		    LOG(INFO) << "wait4 again, ret: " << ret;
+		    SPDLOG_INFO("wait4 again, ret: {:d}", ret);
 		    if (ret == -1) {
-		        LOG(ERROR) << "wait4 error, ret: " << ret;
+		        SPDLOG_ERROR("wait4 error, ret: {:d}", ret);
 		    }
 		}
 

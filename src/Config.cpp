@@ -5,8 +5,11 @@
 #include <iostream>
 #include <fstream>
 #include <map>
+#include <string>
 #include <sys/syscall.h>
-#include <glog/logging.h>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/daily_file_sink.h>
 
 #include "Config.h"
 
@@ -18,16 +21,39 @@ const int Config::JAVA_LANG = 3;
 const int Config::PY2_LANG = 4;
 const int Config::PY3_LANG = 5;
 
+void init_logger() {
+    const std::string pattern = "[%l] %Y-%m-%d %H:%M:%S,%e %P %t %s:%# %v";
+    try {
+        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        console_sink->set_level(spdlog::level::info);
+        console_sink->set_pattern(pattern);
+
+        auto file_sink = std::make_shared<spdlog::sinks::daily_file_sink_mt>("logs/judger.txt", 23, 59);
+        file_sink->set_level(spdlog::level::info);
+        file_sink->set_pattern(pattern);
+
+        spdlog::sinks_init_list sink_list = {file_sink, console_sink};
+        spdlog::set_default_logger(std::make_shared<spdlog::logger>("multi_sink", sink_list));
+        spdlog::flush_on(spdlog::level::info);
+
+    } catch (const spdlog::spdlog_ex& ex) {
+        std::cout << "log initialization failed: " << ex.what() << std::endl;
+        exit(1);
+    }
+}
+
+
 Config::Config(std::string config_file) {
 	
-	FLAGS_logtostderr = true;
+    init_logger();
 
 	print_logo();
 
 	std::ifstream file(config_file.c_str());
 
 	if (!file) {
-		LOG(FATAL) << "config file " + config_file + " does not exists";
+		SPDLOG_ERROR("config file: [{:s}] does not exist", config_file);
+		exit(1);
 	} else {
 
 		restricted_call[CPP_LANG] = restricted_call[CPP11_LANG] = restricted_call[PY2_LANG] = restricted_call[PY3_LANG] = {
@@ -183,7 +209,8 @@ Config::Config(std::string config_file) {
 
 		for (const auto &key : check_list) {
 			if (config_map.find(key) == config_map.end()) {
-				LOG(FATAL) << "need key [" << key << "] in config.ini";
+				SPDLOG_ERROR("need key: [{:s}] in config.ini", key);
+				exit(1);
 			}
 		}
 
@@ -210,6 +237,6 @@ Config::Config(std::string config_file) {
 		spj_files_path = config_map["spj_files_path"];
 		stderr_file = config_map["stderr_file"];
 		connect_string = config_map["connect_string"];
-		LOG(INFO) << "config is finished";
+		SPDLOG_INFO("configuration is finished");
 	}
 }
