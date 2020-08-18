@@ -35,15 +35,21 @@ public:
     Runner(int time_limit_ms, int memory_limit_kb,
            int language, const std::string &src);
 
-public:
+private:
     static int get_time_ms(const rusage &run_info);
 
     static int get_memory_kb(const rusage &run_info);
+
+    static unsigned long long get_syscall(pid_t pid);
+
+    static bool called_restricted_function(int language, unsigned long long syscall, bool first_exec);
 
 private:
     void child_compile();
 
     void child_run();
+
+    RunResult father_run(pid_t cid);
 
 public:
     RunResult compile();

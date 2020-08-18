@@ -157,7 +157,7 @@ void Runner::child_run() {
     itv.it_value.tv_usec = (total_run_time_ms % 1000) * 1000;
     itv.it_interval.tv_sec = 0;
     itv.it_interval.tv_usec = 0;
-    setitimer(ITIMER_VIRTUAL, &itv, NULL); // CPU time
+    setitimer(ITIMER_PROF, &itv, NULL); // CPU time
 
     itv.it_value.tv_sec = total_run_time_ms / 1000 + 3;
     itv.it_value.tv_usec = (total_run_time_ms % 1000) * 1000;
@@ -219,121 +219,135 @@ void Runner::child_run() {
     }
 }
 
-RunResult Runner::run(const std::string &input_file) { // suppose compile success
+RunResult Runner::father_run(pid_t cid) {
+    SPDLOG_INFO("child process pid is {:d}", cid);
+
+    RunResult result = RunResult::RUN_SUCCESS;
+    int status;
+    bool first_exec = false;
+    bool first_wait = true;
+    do {
+        rusage run_info;
+        if (wait4(cid, &status, 0, &run_info) == -1) {
+            SPDLOG_ERROR("wait4 error: {:s}", strerror(errno));
+            return RunResult::JUDGE_ERROR;
+        }
+        result = result.set_time_used(get_time_ms(run_info)).set_memory_used(get_memory_kb(run_info));
+
+        if (first_wait) {
+            if (ptrace(PTRACE_SETOPTIONS, cid, 0, PTRACE_O_TRACESYSGOOD) == -1) {
+                SPDLOG_ERROR("PTRACE_SETOPTIONS error: {:s}", strerror(errno));
+            }
+            first_wait = false;
+        }
+
+        // stopped by system call
+        if (WIFSTOPPED(status) && (WSTOPSIG(status) == (SIGTRAP | 0x80))) {
+            unsigned long long syscall = get_syscall(cid);
+            if (called_restricted_function(language, syscall, first_exec)) {
+                result.status = RunResult::RESTRICTED_FUNCTION.status;
+                SPDLOG_INFO("child[{:d}] called restricted function: {:d}", cid, syscall);
+                if (kill(cid, SIGKILL) == -1) {
+                    SPDLOG_ERROR("kill cid[{:d}] error: {:s}", cid, strerror(errno));
+                }
+                continue;
+            }
+
+            if (syscall == SYS_execve) {
+                first_exec = false;
+            }
+            if (ptrace(PTRACE_SYSCALL, cid, NULL, NULL) == -1) {
+                SPDLOG_ERROR("PTRACE_SYSCALL error: {:s}", strerror(errno));
+            }
+            continue;
+        }
+
+
+        if (WIFEXITED(status)) {
+            SPDLOG_INFO("cid[{:d}] exited, status: {:d}", cid, WEXITSTATUS(status));
+            if (WEXITSTATUS(status) != 0) {
+                result.status = RunResult::RUNTIME_ERROR.status;
+                SPDLOG_INFO("runtime error because exit status: {:d} is not zero", WEXITSTATUS(status));
+            } else if (result.time_used_ms > time_limit_ms) {
+                result.status = RunResult::TIME_LIMIT_EXCEEDED.status;
+                SPDLOG_INFO("time limit exceeded after run successfully, time used: {:d}ms", result.time_used_ms);
+            } else if (result.memory_used_kb > memory_limit_kb) {
+                result.status = RunResult::MEMORY_LIMIT_EXCEEDED.status;
+                SPDLOG_INFO("memory limit exceeded after run successfully, memory used: {:d}kb", result.memory_used_kb);
+            }
+        } else if (WIFSIGNALED(status) || WIFSTOPPED(status)) {
+            int sig;
+            if (WIFSIGNALED(status)) {
+                sig = WTERMSIG(status);
+                SPDLOG_INFO("killed by signal: {:d} {:s}", sig, strsignal(sig));
+            } else {
+                sig = WSTOPSIG(status);
+                SPDLOG_INFO("stopped by signal: {:d} {:s}", sig, strsignal(sig));
+
+                if (sig == SIGTRAP) {
+                    SPDLOG_INFO("continue running because stopped by SIGTRAP");
+                    if (ptrace(PTRACE_SYSCALL, cid, NULL, NULL) == -1) {
+                        SPDLOG_ERROR("PTRACE_SYSCALL error: {:s}", strerror(errno));
+                    }
+                    continue;
+                }
+            }
+
+            if (sig == SIGALRM || sig == SIGPROF) {
+                result.status = RunResult::TIME_LIMIT_EXCEEDED.status;
+                SPDLOG_INFO("time limit exceeded by signal: {:d} {:s}", sig, strsignal(sig));
+            } else if (sig == SIGXFSZ) {
+                result.status = RunResult::OUTPUT_LIMIT_EXCEEDED.status;
+                SPDLOG_INFO("output limit exceeded by signal: {:d} {:s}", sig, strsignal(sig));
+            } else {
+                if (result == RunResult::RUN_SUCCESS) {
+                    result.status = RunResult::RUNTIME_ERROR.status;
+                    SPDLOG_INFO("runtime error by signal: {:d} {:s}", sig, strsignal(sig));
+                }
+            }
+            if (WIFSTOPPED(status)) {
+                SPDLOG_INFO("kill cid[{:d}] because stopped by signal", cid);
+                if (kill(cid, SIGKILL) == -1) {
+                    SPDLOG_ERROR("kill cid[{:d}] error: {:s}", cid, strerror(errno));
+                }
+            }
+        } else { // continued
+            result.status = RunResult::RUNTIME_ERROR.status;
+            SPDLOG_INFO("runtime error because continued");
+
+            SPDLOG_INFO("kill cid[{:d}] because continued", cid);
+            if (kill(cid, SIGKILL) == -1) {
+                SPDLOG_ERROR("kill cid[{:d}] error: {:s}", cid, strerror(errno));
+            }
+        }
+    } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+
+    return result;
+}
+
+// before calling this function, must call function compile first
+RunResult Runner::run(const std::string &input_file) {
     this->input_file = input_file;
 
     pid_t cid = fork();
 
     if (cid == -1) {
+        SPDLOG_ERROR("fork error: {:s}", strerror(errno));
         return RunResult::JUDGE_ERROR;
-    } else if (cid == 0) { // child process
+    } else if (cid == 0) {
         child_run();
-        exit(0); /// do not return
-    } else { // father process
-        RunResult result;
-        int status;
-        rusage run_info;
-        user_regs_struct reg;
-        bool called_exec = false;
-        bool need_wait = true;
-        while (true) {
-            if (wait4(cid, &status, 0, &run_info) == -1) {
-                kill(cid, SIGKILL);
-                result = RunResult::JUDGE_ERROR;
-                break;
-            }
-            int time_used_ms = get_time_ms(run_info);
-            int memory_used_kb = get_memory_kb(run_info);
-
-            result = result.set_time_used(time_used_ms).set_memory_used(memory_used_kb);
-
-            if (time_used_ms >= time_limit_ms) {    /// deal with cpu time limit exceeded
-                result.status = RunResult::TIME_LIMIT_EXCEEDED.status;
-                ptrace(PTRACE_KILL, cid, NULL, NULL);
-                break;
-            } else if (WIFEXITED(status)) {
-                need_wait = false;
-                if (WEXITSTATUS(status) != 0)
-                    result.status = RunResult::RUNTIME_ERROR.status;
-                else if (memory_used_kb > memory_limit_kb)
-                    result.status = RunResult::MEMORY_LIMIT_EXCEEDED.status;
-                else
-                    result.status = RunResult::RUN_SUCCESS.status;
-                break;
-            } else if (WIFSIGNALED(status) && WTERMSIG(status) != SIGTRAP) {
-                if (WTERMSIG(status) == SIGXFSZ)
-                    result.status = RunResult::OUTPUT_LIMIT_EXCEEDED.status;
-                if (WTERMSIG(status) == SIGXCPU || WTERMSIG(status) == SIGVTALRM || WTERMSIG(status) == SIGALRM)
-                    result.status = RunResult::TIME_LIMIT_EXCEEDED.status;
-                else
-                    result.status = RunResult::RUNTIME_ERROR.status;
-                ptrace(PTRACE_KILL, cid, NULL, NULL);
-                break;
-            } else if (WIFSTOPPED(status) && WSTOPSIG(status) != SIGTRAP) {
-                if (WSTOPSIG(status) == SIGXFSZ)
-                    result.status = RunResult::OUTPUT_LIMIT_EXCEEDED.status;
-                else if (WSTOPSIG(status) == SIGXCPU || WSTOPSIG(status) == SIGVTALRM || WSTOPSIG(status) == SIGALRM)
-                    result.status = RunResult::TIME_LIMIT_EXCEEDED.status;
-                else
-                    result.status = RunResult::RUNTIME_ERROR.status;
-                ptrace(PTRACE_KILL, cid, NULL, NULL);
-                break;
-            } else if ((status >> 8) != 5 && (status >> 8) > 0) {
-                result.status = RunResult::RUNTIME_ERROR.status;
-                ptrace(PTRACE_KILL, cid, NULL, NULL);
-                break;
-            }
-
-            /// deal with restricted calls
-            ptrace(PTRACE_GETREGS, cid, NULL, &reg);
-#ifdef __i386__
-            if (reg.orig_eax == SYS_execve && !called_exec) {
-                called_exec = true;
-            } else {
-                if (Config::get_instance()->is_restricted_call(language, reg.orig_eax)) {
-                    result.status = RunResult::RESTRICTED_FUNCTION.status;
-                    ptrace(PTRACE_KILL, cid, NULL, NULL);
-                    break;
-                }
-            }
-#else
-            if (reg.orig_rax == SYS_execve && !called_exec) {
-                called_exec = true;
-            } else {
-                if (Config::get_instance()->is_restricted_call(language, reg.orig_rax)) {
-                    result.status = RunResult::RESTRICTED_FUNCTION.status;
-                    ptrace(PTRACE_KILL, cid, NULL, NULL);
-                    break;
-                }
-            }
-#endif
-            /// deal with memory limit exceeded
-            if (memory_used_kb > memory_limit_kb) {
-                result.status = RunResult::MEMORY_LIMIT_EXCEEDED.status;
-                ptrace(PTRACE_KILL, cid, NULL, NULL);
-                break;
-            }
-            ptrace(PTRACE_SYSCALL, cid, NULL, NULL);
-        }
-
-
-        SPDLOG_INFO("child: {:d}, need_wait: {:s}", cid, (need_wait ? "true" : "false"));
-        if (need_wait) {
-            int ret = wait4(cid, &status, WUNTRACED, &run_info);
-            SPDLOG_INFO("wait4 again, ret: {:d}", ret);
-            if (ret == -1) {
-                SPDLOG_ERROR("wait4 error, ret: {:d}", ret);
-            }
-        }
-
-        std::string stderr_file = Config::get_instance()->get_temp_path() + Config::get_instance()->get_stderr_file();
-        if (Utils::check_file(exc_file_name)) Utils::delete_file(exc_file_name);
-        if (Utils::check_file(stderr_file)) Utils::delete_file(stderr_file);
-
-        if (result == RunResult::TIME_LIMIT_EXCEEDED)
-            result.time_used_ms = std::max(result.time_used_ms, time_limit_ms);
-        return result;
     }
+
+    RunResult result = father_run(cid);
+    if (result == RunResult::TIME_LIMIT_EXCEEDED) {
+        result.time_used_ms = std::max(result.time_used_ms, time_limit_ms);
+    }
+
+    std::string stderr_file = Config::get_instance()->get_temp_path() + Config::get_instance()->get_stderr_file();
+    if (Utils::check_file(exc_file_name)) Utils::delete_file(exc_file_name);
+    if (Utils::check_file(stderr_file)) Utils::delete_file(stderr_file);
+
+    return result;
 }
 
 RunResult Runner::run() {
@@ -346,4 +360,23 @@ int Runner::get_time_ms(const rusage &run_info) {
 
 int Runner::get_memory_kb(const rusage &run_info) {
     return run_info.ru_minflt * (getpagesize() / 1024);
+}
+
+unsigned long long Runner::get_syscall(pid_t pid) {
+    user_regs_struct reg;
+    if (ptrace(PTRACE_GETREGS, pid, NULL, &reg) == -1) {
+        SPDLOG_ERROR("PTRACE_GETREGS error: {:s}", strerror(errno));
+        return -1;
+    }
+    return reg.orig_rax;
+}
+
+bool Runner::called_restricted_function(int language, unsigned long long syscall, bool first_exec) {
+    if (syscall < 0)
+        return false;
+
+    if (syscall == SYS_execve && first_exec)
+        return false;
+
+    return Config::get_instance()->is_restricted_call(language, syscall);
 }

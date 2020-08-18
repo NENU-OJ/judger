@@ -23,7 +23,7 @@ private:
     std::map<int, std::string> src_extension;
     std::map<int, std::string> exc_extension;
 
-    std::unordered_map<int, std::unordered_set<int>> restricted_call;
+    std::unordered_map<int, std::unordered_set<unsigned long long >> restricted_call;
 
     std::map<std::string, std::string> config_map;
 
@@ -175,7 +175,7 @@ public:
         return res;
     }
 
-    bool is_restricted_call(int language, int call) {
+    bool is_restricted_call(int language, unsigned long long call) {
         return restricted_call[language].find(call) != restricted_call[language].end();
     }
 
