@@ -9,3 +9,5 @@ temp_path/
 spj_files/
 test_files/
 nohup.out
+logs/
+config.ini
