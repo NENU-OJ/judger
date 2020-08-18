@@ -37,7 +37,7 @@ RUN cmake . && make
 
 WORKDIR /
 RUN mkdir judger
-RUN cp judger-build/Judger judger-build/config.ini judger/
+RUN cp judger-build/Judger judger/
 RUN rm -rf judger-build
 
 WORKDIR judger
