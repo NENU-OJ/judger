@@ -339,6 +339,7 @@ RunResult Runner::run(const std::string &input_file) {
     }
 
     RunResult result = father_run(cid);
+    SPDLOG_INFO("result: {:s}, time used: {:d}ms, memory used: {:d}kb", result.status, result.time_used_ms, result.memory_used_kb);
     if (result == RunResult::TIME_LIMIT_EXCEEDED) {
         result.time_used_ms = std::max(result.time_used_ms, time_limit_ms);
     }
@@ -355,7 +356,8 @@ RunResult Runner::run() {
 }
 
 int Runner::get_time_ms(const rusage &run_info) {
-    return run_info.ru_utime.tv_sec * 1000 + run_info.ru_utime.tv_usec / 1000;
+    return run_info.ru_utime.tv_sec * 1000 + run_info.ru_utime.tv_usec / 1000 +
+           run_info.ru_stime.tv_sec * 1000 + run_info.ru_stime.tv_usec / 1000;
 }
 
 int Runner::get_memory_kb(const rusage &run_info) {
