@@ -159,12 +159,6 @@ void Runner::child_run() {
     itv.it_interval.tv_usec = 0;
     setitimer(ITIMER_PROF, &itv, NULL); // CPU time
 
-    itv.it_value.tv_sec = total_run_time_ms / 1000 + 3;
-    itv.it_value.tv_usec = (total_run_time_ms % 1000) * 1000;
-    itv.it_interval.tv_sec = 0;
-    itv.it_interval.tv_usec = 0;
-    setitimer(ITIMER_REAL, &itv, NULL); // real time
-
     /// set stack limit
     rlimit stack_limit;
     stack_limit.rlim_max = stack_limit.rlim_cur = rlim_t(Config::get_instance()->get_stack_limit_kb()) * 1024;
@@ -293,7 +287,7 @@ RunResult Runner::father_run(pid_t cid) {
                 }
             }
 
-            if (sig == SIGALRM || sig == SIGPROF) {
+            if (sig == SIGPROF) {
                 result.status = RunResult::TIME_LIMIT_EXCEEDED.status;
                 SPDLOG_INFO("time limit exceeded by signal: {:d} {:s}", sig, strsignal(sig));
             } else if (sig == SIGXFSZ) {
