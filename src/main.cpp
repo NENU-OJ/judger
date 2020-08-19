@@ -1,5 +1,6 @@
-#include <iostream>
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/daily_file_sink.h>
 #include <queue>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -15,12 +16,19 @@
 using namespace std;
 
 static queue<Submit *> judge_queue;
-static int main_sockfd;
+static int sockfd;
 static pthread_mutex_t queue_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-/**
- * get unfinished runs from database
- */
+void print_logo() {
+    const char *logo = "\n"
+                       " __   __     ______     __   __     __  __     ______       __    \n"
+                       "/\\ \"-.\\ \\   /\\  ___\\   /\\ \"-.\\ \\   /\\ \\/\\ \\   /\\  __ \\     /\\ \\   \n"
+                       "\\ \\ \\-.  \\  \\ \\  __\\   \\ \\ \\-.  \\  \\ \\ \\_\\ \\  \\ \\ \\/\\ \\   _\\_\\ \\  \n"
+                       " \\ \\_\\\\\"\\_\\  \\ \\_____\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\  \\ \\_____\\ /\\_____\\ \n"
+                       "  \\/_/ \\/_/   \\/_____/   \\/_/ \\/_/   \\/_____/   \\/_____/ \\/_____/ \n"
+                       "                                                                  \n";
+    fputs(logo, stderr);
+}
 
 void init_queue() {
     try {
@@ -33,6 +41,7 @@ void init_queue() {
             int uid = atoi(run["user_id"].c_str());
             int contest_id = atoi(run["contest_id"].c_str());
             auto problem_info = db.get_problem_description(pid);
+
             Submit *submit = new Submit();
             submit->set_runid(runid);
             submit->set_pid(pid);
@@ -58,51 +67,44 @@ void init_queue() {
     }
 }
 
-/**
- * init socket listener
- */
 void init_socket() {
-
     SPDLOG_INFO("init socket");
 
-    if ((main_sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        SPDLOG_ERROR("socket error");
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        SPDLOG_ERROR("socket error: {:s}", strerror(errno));
         exit(1);
     }
 
-    sockaddr_in my_addr;
-    my_addr.sin_family = AF_INET;
-    my_addr.sin_port = htons(Config::get_instance()->get_listen_port());
-    my_addr.sin_addr.s_addr = INADDR_ANY;
-    bzero(&(my_addr.sin_zero), 8);
+    sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(Config::get_instance()->get_listen_port());
+    addr.sin_addr.s_addr = INADDR_ANY;
+    bzero(&(addr.sin_zero), 8);
 
     SPDLOG_INFO("bind socket");
-
-    if (bind(main_sockfd, (struct sockaddr *) &my_addr,
-             sizeof(struct sockaddr)) == -1) {
-        SPDLOG_ERROR("bind error");
+    if (bind(sockfd, (struct sockaddr *) &addr, sizeof(struct sockaddr)) == -1) {
+        SPDLOG_ERROR("bind error: {:s}", strerror(errno));
         exit(1);
     }
 
     SPDLOG_INFO("start listen");
-
-    if (listen(main_sockfd, 5) == -1) {
-        SPDLOG_ERROR("listen error");
+    if (listen(sockfd, 5) == -1) {
+        SPDLOG_ERROR("listen error: {:s}", strerror(errno));
         exit(1);
     }
 
     SPDLOG_INFO("init socket finished");
 }
 
-/**
- * get run from socket
- * @return
- */
 int next_runid() {
-    int cfd = accept(main_sockfd, NULL, NULL);
-
+    int cfd = accept(sockfd, NULL, NULL);
+    if (cfd == -1) {
+        SPDLOG_ERROR("accept error: {:s}", strerror(errno));
+        throw Exception("accept returned -1");
+    }
     SPDLOG_INFO("accepted connection fd: {:d}", cfd);
 
+    // TODO: parse data more elegantly
     static char buf[128];
     int num_read = 0;
     int tries = 5;
@@ -113,7 +115,6 @@ int next_runid() {
     close(cfd);
 
     std::vector<std::string> split_list = Utils::split(buf);
-
     if (split_list.size() < 2) {
         SPDLOG_ERROR("split_list.size: {:d}, buf: {:s}", split_list.size(), buf);
         throw Exception("Error runid request from web");
@@ -121,12 +122,11 @@ int next_runid() {
 
     if (split_list[0] != Config::get_instance()->get_connect_string())
         throw Exception("Wrong connect_string");
-    int runid = atoi(split_list[1].c_str());
+    int runid = atoi(split_list[1].c_str()); // TODO: use safe method instead of dangerous atoi
     return runid;
 }
 
 void *listen_thread(void *arg) {
-
     while (true) {
         try {
             int runid = next_runid();
@@ -144,7 +144,6 @@ void *listen_thread(void *arg) {
 }
 
 void *judge_thread(void *arg) {
-
     while (true) {
         usleep(61743);
         Submit *submit;
@@ -157,23 +156,24 @@ void *judge_thread(void *arg) {
         }
         pthread_mutex_unlock(&queue_mtx);
 
-        if (have_run) {
-            try {
-                SPDLOG_INFO("[judge thread] send runid: {:d} to work", submit->get_runid());
-                submit->work();
+        if (!have_run) continue;
+
+        try {
+            SPDLOG_INFO("[judge thread] send runid: {:d} to work", submit->get_runid());
+            submit->work();
+            delete submit;
+            submit = nullptr;
+        } catch (Exception &e) {
+            SPDLOG_ERROR("{:s}", e.what());
+            if (submit != nullptr) {
                 delete submit;
                 submit = nullptr;
-            } catch (Exception &e) {
-                SPDLOG_ERROR("{:s}", e.what());
-                if (submit != nullptr)
-                    delete submit;
             }
         }
     }
 }
 
 void init_threads() {
-
     /// listen thread
     pthread_t tid_listen;
     if (pthread_create(&tid_listen, NULL, listen_thread, NULL) != 0) {
@@ -184,7 +184,6 @@ void init_threads() {
         SPDLOG_ERROR("cannot detach listen thread!");
         exit(1);
     }
-
     SPDLOG_INFO("listen thread init finished");
 
     /// judge_thread
@@ -197,31 +196,17 @@ void init_threads() {
         SPDLOG_ERROR("cannot detach judge thread!");
         exit(1);
     }
-
     SPDLOG_INFO("judge thread init finished");
 }
-
-void test_runs() {
-    vector<string> src_list = {"tests/test_cpp.cpp", "tests/test_cpp11.cpp", "tests/test_java.java", "tests/test_py2.py", "tests/test_py3.py"};
-    vector<int> lang_list = {Config::CPP_LANG, Config::CPP11_LANG, Config::JAVA_LANG, Config::PY2_LANG, Config::PY3_LANG};
-    for (int i = 0; i < src_list.size(); ++i) {
-        Runner runner(1000, 32768, lang_list[i], Utils::get_content_from_file(src_list[i]));
-        RunResult result = runner.compile();
-        if (result != RunResult::COMPILE_ERROR)
-            cout << runner.run("tests/input").get_print_string() << endl;
-        else
-            cout << result.get_print_string() << endl;
-    }
-}
-
 
 void test_set_uid() {
     pid_t pid;
     if ((pid = fork()) == 0) {
-        if (setuid(Config::get_instance()->get_low_privilege_uid()) == -1)
+        if (setuid(Config::get_instance()->get_low_privilege_uid()) == -1) {
             exit(1);
-        else
+        } else {
             exit(0);
+        }
     } else {
         int status;
         waitpid(pid, &status, 0);
@@ -242,8 +227,31 @@ void test_set_uid() {
     }
 }
 
+void init_logger() {
+    const std::string pattern = "[%l] %Y-%m-%d %H:%M:%S,%e %P %t %s:%# %v";
+    try {
+        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        console_sink->set_level(spdlog::level::info);
+        console_sink->set_pattern(pattern);
+
+        auto file_sink = std::make_shared<spdlog::sinks::daily_file_sink_mt>("logs/judger.txt", 23, 59);
+        file_sink->set_level(spdlog::level::info);
+        file_sink->set_pattern(pattern);
+
+        spdlog::sinks_init_list sink_list = {file_sink, console_sink};
+        spdlog::set_default_logger(std::make_shared<spdlog::logger>("multi_sink", sink_list));
+        spdlog::flush_on(spdlog::level::info);
+
+    } catch (const spdlog::spdlog_ex &ex) {
+        std::cout << "log initialization failed: " << ex.what() << std::endl;
+        exit(1);
+    }
+}
 
 int main(int argc, const char *argv[]) {
+    print_logo();
+    init_logger();
+    Config::instance = new Config("config.ini");
 
     test_set_uid();
     init_socket();
@@ -252,5 +260,6 @@ int main(int argc, const char *argv[]) {
 
     while (true)
         sleep(3600);
+
     return 0;
 }

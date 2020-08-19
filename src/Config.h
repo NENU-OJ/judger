@@ -15,11 +15,6 @@
 
 class Config {
 private:
-
-    static Config *instance;
-
-    Config(std::string config_file);
-
     std::map<int, std::string> src_extension;
     std::map<int, std::string> exc_extension;
 
@@ -58,6 +53,11 @@ public:
     static const int PY3_LANG;
 
 public:
+
+    Config(std::string config_file);
+
+    static Config *instance;
+
     static Config *get_instance() {
         return instance;
     }
@@ -177,18 +177,6 @@ public:
 
     bool is_restricted_call(int language, unsigned long long call) {
         return restricted_call[language].find(call) != restricted_call[language].end();
-    }
-
-
-    void print_logo() {
-        const char *logo = "\n"
-                           " __   __     ______     __   __     __  __     ______       __    \n"
-                           "/\\ \"-.\\ \\   /\\  ___\\   /\\ \"-.\\ \\   /\\ \\/\\ \\   /\\  __ \\     /\\ \\   \n"
-                           "\\ \\ \\-.  \\  \\ \\  __\\   \\ \\ \\-.  \\  \\ \\ \\_\\ \\  \\ \\ \\/\\ \\   _\\_\\ \\  \n"
-                           " \\ \\_\\\\\"\\_\\  \\ \\_____\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\  \\ \\_____\\ /\\_____\\ \n"
-                           "  \\/_/ \\/_/   \\/_____/   \\/_/ \\/_/   \\/_____/   \\/_____/ \\/_____/ \n"
-                           "                                                                  \n";
-        fputs(logo, stderr);
     }
 };
 
