@@ -13,12 +13,14 @@ DatabaseHandler::DatabaseHandler() {
     bool reconnect_flag = true;
     mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect_flag);
     mysql_options(mysql, MYSQL_SET_CHARSET_NAME, "utf8");
-    if (!mysql_real_connect(mysql, Config::get_instance()->get_db_ip().c_str(),
-                            Config::get_instance()->get_db_user().c_str(),
-                            Config::get_instance()->get_db_password().c_str(),
-                            Config::get_instance()->get_db_db_name().c_str(),
-                            Config::get_instance()->get_db_port(),
-                            NULL, 0)) {
+    if (!mysql_real_connect(
+            mysql,
+            Config::get_instance()->get_db_ip().c_str(),
+            Config::get_instance()->get_db_user().c_str(),
+            Config::get_instance()->get_db_password().c_str(),
+            Config::get_instance()->get_db_db_name().c_str(),
+            Config::get_instance()->get_db_port(),
+            NULL, 0)) {
         throw Exception(mysql_error(mysql));
     }
 }
