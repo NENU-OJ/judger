@@ -10,6 +10,7 @@ docker run \
   --restart always \
   --cap-add=SYS_PTRACE \
   --name=$CONTAINER_NAME \
+  --net nenuoj-net \
   -v /etc/timezone:/etc/timezone:ro \
   -v /etc/localtime:/etc/localtime:ro \
   -v $CONFIG_FILE_PATH:/judger/config.ini \
