@@ -23,16 +23,6 @@ if [ ! -n "$LOGS_PATH" ]; then
   exit 1
 fi
 
-if [ ! -n "$HOSTPORT" ]; then
-  echo "Please set environment variable HOSTPORT, such as 27015"
-  exit 1
-fi
-
-if [ ! -n "$CONTAINERPORT" ]; then
-  echo "Please set environment variable CONTAINERPORT, such as 27015"
-  exit 1
-fi
-
 
 docker container rm -f $CONTAINER_NAME 1>/dev/null 2>&1
 
@@ -48,5 +38,4 @@ docker run \
   -v $TEST_FILES_PATH:/judger/test_files \
   -v $SPJ_FILES_PATH:/judger/spj_files \
   -v $LOGS_PATH:/judger/logs \
-  -p $HOSTPORT:$CONTAINERPORT \
   $IMAGE_NAME

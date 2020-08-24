@@ -37,10 +37,10 @@ RUN cmake . && make
 
 WORKDIR /
 RUN mkdir judger
-RUN cp judger-build/Judger judger/
+RUN cp judger-build/judger judger/
 RUN rm -rf judger-build
 
 WORKDIR judger
 RUN mkdir test_files spj_files temp_path && chown judger:judger temp_path
 
-CMD ["./Judger"]
+CMD ["./judger"]
