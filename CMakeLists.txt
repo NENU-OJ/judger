@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.7)
-project(Judger)
+project(judger)
 
 set(CMAKE_CXX_STANDARD 11)
 set(
@@ -24,7 +24,7 @@ include_directories(src/include)
 
 link_directories(/usr/local/lib)
 
-add_executable(Judger ${SOURCE_FILES})
+add_executable(judger ${SOURCE_FILES})
 
-target_link_libraries(Judger pthread)
-target_link_libraries(Judger mysqlclient)
+target_link_libraries(judger pthread)
+target_link_libraries(judger mysqlclient)
