@@ -2,19 +2,19 @@
 // Created by torapture on 17-11-16.
 //
 
-#include <algorithm>
+#include "Submit.h"
+
 #include <spdlog/spdlog.h>
 
-#include "Submit.h"
-#include "Runner.h"
+#include <algorithm>
+
 #include "Config.h"
-#include "Utils.h"
 #include "DatabaseHandler.h"
+#include "Runner.h"
+#include "Utils.h"
 
 Submit::Submit() {
-
 }
-
 
 void Submit::set_runid(int runid) {
     this->runid = runid;
@@ -120,11 +120,9 @@ void Submit::work() {
 
     if (contest_id == 0)
         db.add_problem_result(pid, result);
-
 }
 
 RunResult Submit::spj_check() {
-
     SPDLOG_INFO("spj check runid: {:d}", runid);
 
     std::string spj_src_file = Config::get_instance()->get_spj_files_path() + std::to_string(pid) +
@@ -137,19 +135,30 @@ RunResult Submit::spj_check() {
 
     std::string spj_src = Utils::get_content_from_file(spj_src_file);
 
-
     Runner spj(Config::get_instance()->get_spj_run_time_ms(), Config::get_instance()->get_spj_memory_kb(),
                is_spj, spj_src);
 
+    std::string spj_std_input = Config::get_instance()->get_temp_path() + "spj_std_input";
+    std::string spj_std_output = Config::get_instance()->get_temp_path() + "spj_std_output";
     std::string spj_user_output = Config::get_instance()->get_temp_path() + "spj_user_output";
 
-    std::string cp_cmd = "cp " + user_output_file + " " + spj_user_output;
+    system(("cp " + std_input_file + " " + spj_std_input).c_str());
+    system(("cp " + std_output_file + " " + spj_std_output).c_str());
+    system(("cp " + user_output_file + " " + spj_user_output).c_str());
+    if (chown(spj_std_input.c_str(), Config::get_instance()->get_low_privilege_uid(), Config::get_instance()->get_low_privilege_uid()) == -1) {
+        SPDLOG_ERROR("chown {:s} failed: {:s}", spj_std_input, strerror(errno));
+        return RunResult::JUDGE_ERROR;
+    }
+    if (chown(spj_std_output.c_str(), Config::get_instance()->get_low_privilege_uid(), Config::get_instance()->get_low_privilege_uid()) == -1) {
+        SPDLOG_ERROR("chown {:s} failed: {:s}", spj_std_output, strerror(errno));
+        return RunResult::JUDGE_ERROR;
+    }
+    if (chown(spj_user_output.c_str(), Config::get_instance()->get_low_privilege_uid(), Config::get_instance()->get_low_privilege_uid()) == -1) {
+        SPDLOG_ERROR("chown {:s} failed: {:s}", spj_user_output, strerror(errno));
+        return RunResult::JUDGE_ERROR;
+    }
 
-    system(cp_cmd.c_str());
-
-    std::string spj_info = std_input_file + "\n"
-                           + std_output_file + "\n"
-                           + spj_user_output + "\n";
+    std::string spj_info = spj_std_input + "\n" + spj_std_output + "\n" + spj_user_output + "\n";
 
     std::string spj_info_file = Config::get_instance()->get_temp_path() + "spj_info";
 
@@ -170,6 +179,8 @@ RunResult Submit::spj_check() {
     SPDLOG_INFO("spj result runid: {:d} {:s}", runid, result.status);
 
     if (Utils::check_file(spj_info_file)) Utils::delete_file(spj_info_file);
+    if (Utils::check_file(spj_std_input)) Utils::delete_file(spj_std_input);
+    if (Utils::check_file(spj_std_output)) Utils::delete_file(spj_std_output);
     if (Utils::check_file(spj_user_output)) Utils::delete_file(spj_user_output);
 
     if (result == RunResult::RUN_SUCCESS)
@@ -179,7 +190,6 @@ RunResult Submit::spj_check() {
 }
 
 RunResult Submit::normal_check() {
-
     SPDLOG_INFO("normal check runid: {:d}", runid);
 
     bool aced = true, peed = true;
@@ -191,9 +201,11 @@ RunResult Submit::normal_check() {
     char po_char, so_char;
     while (1) {
         while ((eofs = fscanf(standard_out, "%c", &so_char)) != EOF &&
-               so_char == '\r');
+               so_char == '\r')
+            ;
         while ((eofp = fscanf(program_out, "%c", &po_char)) != EOF &&
-               po_char == '\r');
+               po_char == '\r')
+            ;
         if (eofs == EOF || eofp == EOF) break;
         if (so_char != po_char) {
             aced = false;
@@ -201,9 +213,11 @@ RunResult Submit::normal_check() {
         }
     }
     while ((so_char == '\n' || so_char == '\r') &&
-           ((eofs = fscanf(standard_out, "%c", &so_char)) != EOF));
+           ((eofs = fscanf(standard_out, "%c", &so_char)) != EOF))
+        ;
     while ((po_char == '\n' || po_char == '\r') &&
-           ((eofp = fscanf(program_out, "%c", &po_char)) != EOF));
+           ((eofp = fscanf(program_out, "%c", &po_char)) != EOF))
+        ;
     if (eofp != eofs) aced = false;
     fclose(program_out);
     fclose(standard_out);
@@ -212,9 +226,11 @@ RunResult Submit::normal_check() {
         standard_out = fopen(std_output_file.c_str(), "r");
         while (1) {
             while ((eofs = fscanf(standard_out, "%c", &so_char)) != EOF &&
-                   (so_char == ' ' || so_char == '\n' || so_char == '\r'));
+                   (so_char == ' ' || so_char == '\n' || so_char == '\r'))
+                ;
             while ((eofp = fscanf(program_out, "%c", &po_char)) != EOF &&
-                   (po_char == ' ' || po_char == '\n' || po_char == '\r'));
+                   (po_char == ' ' || po_char == '\n' || po_char == '\r'))
+                ;
             if (eofs == EOF || eofp == EOF) break;
             if (so_char != po_char) {
                 peed = false;
@@ -222,18 +238,23 @@ RunResult Submit::normal_check() {
             }
         }
         while ((so_char == ' ' || so_char == '\n' || so_char == '\r') &&
-               ((eofs = fscanf(standard_out, "%c", &so_char)) != EOF));
+               ((eofs = fscanf(standard_out, "%c", &so_char)) != EOF))
+            ;
         while ((po_char == ' ' || po_char == '\n' || po_char == '\r') &&
-               ((eofp = fscanf(program_out, "%c", &po_char)) != EOF));
+               ((eofp = fscanf(program_out, "%c", &po_char)) != EOF))
+            ;
         if (eofp != eofs) {
             peed = false;
         }
         fclose(program_out);
         fclose(standard_out);
     }
-    if (aced) return RunResult::ACCEPTED;
-    else if (peed) return RunResult::PRESENTATION_ERROR;
-    else return RunResult::WRONG_ANSWER;
+    if (aced)
+        return RunResult::ACCEPTED;
+    else if (peed)
+        return RunResult::PRESENTATION_ERROR;
+    else
+        return RunResult::WRONG_ANSWER;
 }
 
 Submit *Submit::get_from_runid(int runid) {
