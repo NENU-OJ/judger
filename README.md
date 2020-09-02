@@ -90,6 +90,6 @@ Set the environments:
 * `SPJ_FILES_PATH` 
 * `LOGS_PATH`
 
-The permissions of the files and directories in `TEST_FILES_PATH` (including `TEST_FILES_PATH`) should be `0600` and `0700` respectively.
+The permissions of the files and directories in `TEST_FILES_PATH` (including `TEST_FILES_PATH`) should be `0644` for input files, `0600` for output files, and `0755` for directories.
 
 Set the needed files and directories properly and run `docker/rundocker.sh`.
