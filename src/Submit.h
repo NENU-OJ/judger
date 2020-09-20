@@ -6,10 +6,11 @@
 #define JUDGER_SUBMIT_H
 
 #include <string>
+
 #include "RunResult.h"
 
 class Submit {
-private:
+   private:
     int runid;
     int uid;
     int pid;
@@ -22,21 +23,28 @@ private:
     std::string std_output_file;
     std::string user_output_file;
     std::string src;
-private:
+
+   private:
     RunResult spj_check();
 
     RunResult normal_check();
 
-public:
+   public:
     Submit();
 
     void set_runid(int runid);
 
     void set_uid(int uid);
 
+    int get_uid();
+
     void set_pid(int pid);
 
+    int get_pid();
+
     void set_contest_id(int contest_id);
+
+    std::string get_contest_id_str();
 
     void set_time_limit_ms(int time_limit_ms);
 
@@ -63,5 +71,4 @@ public:
     }
 };
 
-
-#endif //JUDGER_SUBMIT_H
+#endif  //JUDGER_SUBMIT_H

@@ -24,12 +24,27 @@ void Submit::set_uid(int uid) {
     this->uid = uid;
 }
 
+int Submit::get_uid() {
+    return this->uid;
+}
+
 void Submit::set_pid(int pid) {
     this->pid = pid;
 }
 
+int Submit::get_pid() {
+    return this->pid;
+}
+
 void Submit::set_contest_id(int contest_id) {
     this->contest_id = contest_id;
+}
+
+std::string Submit::get_contest_id_str() {
+    if (this->contest_id == 0) {
+        return "None";
+    }
+    return std::to_string(this->contest_id);
 }
 
 void Submit::set_time_limit_ms(int time_limit_ms) {
@@ -103,7 +118,8 @@ void Submit::work() {
     std::string output_file = Config::get_instance()->get_temp_path() + Config::get_instance()->get_output_file();
     if (Utils::check_file(output_file)) Utils::delete_file(output_file);
 
-    SPDLOG_INFO("result runid: {:d} {:s}", runid, result.status);
+    SPDLOG_INFO("↥↥↥↥↥↥↥↥↥↥RESULT runid[{:d}] status[{:s}] time[{:d}ms] memory[{:d}kb]↥↥↥↥↥↥↥↥↥↥\n", runid, result.status, result.time_used_ms,
+                result.memory_used_kb);
 
     if (result == RunResult::ACCEPTED) {
         if (contest_id == 0) {

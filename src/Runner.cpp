@@ -115,6 +115,7 @@ RunResult Runner::compile() {
     } else if (cid == 0) { // child process
         child_compile();
     } else { // father process
+        SPDLOG_INFO("child compiler process pid is {:d}", cid);
         int status;
         rusage run_info;
 
@@ -140,7 +141,7 @@ RunResult Runner::compile() {
                 // dirty way to kill the subprocess, maybe clean it later
                 // g++'s child process cc1plus will become orphan process when g++ is killed
                 int code = system("pkill cc1plus");
-                SPDLOG_INFO("compile time limit exceeded, run cmd[pkill cc1plus] to kill the compiler, exit code: {:d}", code);
+                SPDLOG_INFO("compile time limit exceeded, run cmd[pkill cc1plus] to kill the compiler, pkill exit code: {:d}", code);
             }
             return RunResult::COMPILE_ERROR.set_time_used(time_used_ms).set_memory_used(memory_used_kb).set_ce_info(ce_info);
         }
@@ -214,7 +215,7 @@ void Runner::child_run() {
 }
 
 RunResult Runner::father_run(pid_t cid) {
-    SPDLOG_INFO("child process pid is {:d}", cid);
+    SPDLOG_INFO("child runner process pid is {:d}", cid);
 
     RunResult result = RunResult::RUN_SUCCESS;
     int status;

@@ -135,7 +135,7 @@ void *listen_thread(void *arg) {
             db.change_run_result(runid, RunResult::QUEUEING);
             pthread_mutex_lock(&queue_mtx);
             judge_queue.push(submit);
-            SPDLOG_INFO("[listen thread] socket enqueue runid: {:d}", runid);
+            SPDLOG_INFO("enqueue runid: {:d}", runid);
             pthread_mutex_unlock(&queue_mtx);
         } catch (Exception &e) {
             SPDLOG_ERROR("{:s}", e.what());
@@ -159,7 +159,8 @@ void *judge_thread(void *arg) {
         if (!have_run) continue;
 
         try {
-            SPDLOG_INFO("[judge thread] send runid: {:d} to work", submit->get_runid());
+            SPDLOG_INFO("↧↧↧↧↧↧↧↧↧↧START JUDGING runid[{:d}] user_id[{:d}] problem_id[{:d}] contest[{:s}]↧↧↧↧↧↧↧↧↧↧", submit->get_runid(),
+                        submit->get_uid(), submit->get_pid(), submit->get_contest_id_str());
             submit->work();
             delete submit;
             submit = nullptr;
