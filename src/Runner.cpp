@@ -138,6 +138,7 @@ RunResult Runner::compile() {
             if (WIFSIGNALED(status) && WTERMSIG(status) == SIGALRM) { // compile time limit exceeded
                 time_used_ms = Config::get_instance()->get_compile_time_ms();
                 ce_info = "Compile time limit exceeded.";
+                // FIXME: deal with zombie process
                 // dirty way to kill the subprocess, maybe clean it later
                 // g++'s child process cc1plus will become orphan process when g++ is killed
                 int code = system("pkill cc1plus");

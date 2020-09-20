@@ -1,17 +1,19 @@
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/sinks/daily_file_sink.h>
-#include <queue>
-#include <sys/socket.h>
+#include <arpa/inet.h>
 #include <netinet/in.h>
+#include <spdlog/sinks/daily_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
+#include <sys/socket.h>
 #include <wait.h>
 
-#include "Runner.h"
+#include <queue>
+
 #include "Config.h"
-#include "Utils.h"
-#include "Submit.h"
 #include "DatabaseHandler.h"
 #include "Exception.h"
+#include "Runner.h"
+#include "Submit.h"
+#include "Utils.h"
 
 using namespace std;
 
@@ -96,13 +98,36 @@ void init_socket() {
     SPDLOG_INFO("init socket finished");
 }
 
+string get_remote(const sockaddr_storage &addr) {
+    char ipstr[INET6_ADDRSTRLEN];
+    int port;
+
+    if (addr.ss_family == AF_INET) {
+        struct sockaddr_in *s = (struct sockaddr_in *)&addr;
+        port = ntohs(s->sin_port);
+        inet_ntop(AF_INET, &s->sin_addr, ipstr, sizeof ipstr);
+    } else {
+        struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
+        port = ntohs(s->sin6_port);
+        inet_ntop(AF_INET6, &s->sin6_addr, ipstr, sizeof ipstr);
+    }
+
+    return string(ipstr) + ":" + to_string(port);
+}
+
 int next_runid() {
-    int cfd = accept(sockfd, NULL, NULL);
+    socklen_t len;
+    sockaddr_storage addr;
+    len = sizeof(addr);
+
+    int cfd = accept(sockfd, (struct sockaddr *)&addr, &len);
     if (cfd == -1) {
         SPDLOG_ERROR("accept error: {:s}", strerror(errno));
         throw Exception("accept returned -1");
     }
-    SPDLOG_INFO("accepted connection fd: {:d}", cfd);
+
+    string remote = get_remote(addr);
+    SPDLOG_INFO("accepted connection fd: {:d}, remote: {:s}", cfd, remote);
 
     // TODO: parse data more elegantly
     static char buf[128];
