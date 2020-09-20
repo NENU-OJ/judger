@@ -127,6 +127,9 @@ RunResult Runner::compile() {
 
         std::string ce_info_file = Config::get_instance()->get_temp_path() + Config::get_instance()->get_ce_info_file();
         std::string ce_info = Utils::get_content_from_file(ce_info_file);
+        if (ce_info.size() > MAX_CE_INFO_SIZE) {
+            ce_info.erase(ce_info.begin() + MAX_CE_INFO_SIZE, ce_info.end());
+        }
 
         if (Utils::check_file(src_file_name)) Utils::delete_file(src_file_name);
         if (Utils::check_file(ce_info_file)) Utils::delete_file(ce_info_file);

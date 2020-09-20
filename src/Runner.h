@@ -16,6 +16,7 @@ class Runner {
 public:
     static const int DEFAULT_TIME_LIMIT_MS = 1000;
     static const int DEFAULT_MEMORY_LIMIT_KB = 32768;
+    static const int MAX_CE_INFO_SIZE = 20000;
 
 private:
     int time_limit_ms;
