@@ -12,7 +12,7 @@ DatabaseHandler::DatabaseHandler() {
     mysql_init(mysql);
     bool reconnect_flag = true;
     mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect_flag);
-    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, "utf8");
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, "utf8mb4");
     if (!mysql_real_connect(
             mysql,
             Config::get_instance()->get_db_ip().c_str(),
